@@ -3,6 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { UserContext } from '../context/user.context'
 import axios from '../config/axios'
 
+function getAuthError(error, fallback) {
+    const validationErrors = error.response?.data?.errors
+    if (Array.isArray(validationErrors)) {
+        return validationErrors.map(item => item.msg).filter(Boolean).join(' ')
+    }
+    if (typeof validationErrors === 'string') return validationErrors
+    if (typeof error.response?.data === 'string' && !error.response.data.trimStart().startsWith('<')) {
+        return error.response.data
+    }
+    return error.response?.data?.message || error.message || fallback
+}
+
 const Register = () => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -19,7 +31,7 @@ const Register = () => {
             setUser(res.data.user)
             navigate('/')
         } catch (err) {
-            setError(err.response?.data?.message || 'We could not create your account. Check your details and try again.')
+            setError(getAuthError(err, 'We could not create your account. Check your details and try again.'))
         }
     }
 

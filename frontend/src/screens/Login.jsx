@@ -3,6 +3,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import axios from '../config/axios'
 import { UserContext } from '../context/user.context'
 
+function getAuthError(error, fallback) {
+    const validationErrors = error.response?.data?.errors
+    if (Array.isArray(validationErrors)) {
+        return validationErrors.map(item => item.msg).filter(Boolean).join(' ')
+    }
+    if (typeof validationErrors === 'string') return validationErrors
+    if (typeof error.response?.data === 'string' && !error.response.data.trimStart().startsWith('<')) {
+        return error.response.data
+    }
+    return error.response?.data?.message || error.message || fallback
+}
+
 const Login = () => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -19,7 +31,7 @@ const Login = () => {
             setUser(res.data.user)
             navigate('/')
         } catch (err) {
-            setError(err.response?.data?.message || 'We could not sign you in. Check your details and try again.')
+            setError(getAuthError(err, 'We could not sign you in. Check your details and try again.'))
         }
     }
 

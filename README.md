@@ -80,6 +80,20 @@ npm run dev
 
 Open the local URL printed by Vite. Keep MongoDB, Redis, and the backend running while using the app.
 
+## Deploy on Vercel
+
+The Vercel project should use `frontend` as its Root Directory with the Vite framework preset. Deploy the Node/Express backend as a separate service that supports persistent Socket.IO connections, and configure its MongoDB, Redis, and JWT environment variables there.
+
+In the Vercel frontend project's **Settings → Environment Variables**, add:
+
+```env
+VITE_API_URL=https://your-deployed-backend.example.com
+```
+
+Use the backend's origin only; do not append `/users` or `/projects`. Add the variable to each Vercel environment you use (Production, Preview, and Development), then redeploy the frontend. The backend must be reachable over HTTPS from the deployed site. Do not put `MONGODB_URI`, `JWT_SECRET`, `GOOGLE_AI_KEY`, or Redis credentials in the frontend project; those belong only in the backend service's environment.
+
+If this variable is missing, account registration and login cannot reach the backend. The frontend now displays a configuration error instead of silently posting those requests back to the static Vercel site.
+
 ## Main API routes
 
 Most user and project routes require a bearer token in the `Authorization` header.
