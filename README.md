@@ -42,7 +42,7 @@ The project file tree is mounted in WebContainer, which runs the project in the 
 
 ### 1. Configure the backend
 
-Create `backend/.env`:
+Copy `backend/.env.example` to `backend/.env` and fill in your own service credentials:
 
 ```env
 PORT=3000
@@ -59,7 +59,7 @@ Install dependencies and start the API and Socket.IO server:
 ```bash
 cd backend
 npm install
-node server.js
+npm start
 ```
 
 ### 2. Configure the frontend
