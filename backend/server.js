@@ -5,7 +5,11 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import projectModel from './models/project.model.js';
-import { generateResult } from './services/ai.service.js';
+import { generateResult, getAiFailureMessage } from './services/ai.service.js';
+import { collectFilePaths, mergeFileTrees } from './services/file-tree.service.js';
+import { updateFileTree } from './services/project.service.js';
+import redisClient from './services/redis.service.js';
+import connect from './db/db.js';
 
 const port = process.env.PORT || 3000;
 
@@ -31,18 +35,19 @@ io.use(async (socket, next) => {
         }
 
 
-        socket.project = await projectModel.findById(projectId);
-
-
         if (!token) {
             return next(new Error('Authentication error'))
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        if (!decoded) {
+        if (!decoded?._id) {
             return next(new Error('Authentication error'))
         }
+        if (await redisClient.get(token)) return next(new Error('Authentication error'));
+
+        socket.project = await projectModel.findOne({ _id: projectId, users: decoded._id });
+        if (!socket.project) return next(new Error('Project access denied'));
 
 
         socket.user = decoded;
@@ -67,27 +72,59 @@ io.on('connection', socket => {
     socket.join(socket.roomId);
 
     socket.on('project-message', async data => {
+        const message = typeof data?.message === 'string' ? data.message.trim() : '';
+        if (!message || message.length > 10000) return;
 
-        const message = data.message;
+        const payload = { message, sender: { _id: socket.user._id, email: socket.user.email } };
 
         const aiIsPresentInMessage = message.includes('@ai');
-        socket.broadcast.to(socket.roomId).emit('project-message', data)
+        socket.broadcast.to(socket.roomId).emit('project-message', payload)
 
         if (aiIsPresentInMessage) {
 
 
             const prompt = message.replace('@ai', '');
 
-            const result = await generateResult(prompt);
+            try {
+                const result = JSON.parse(await generateResult(prompt, {
+                    existingFileTree: socket.project.fileTree || {}
+                }));
+                const generatedFiles = collectFilePaths(result.fileTree);
 
+                if (generatedFiles.length) {
+                    const mergedFileTree = mergeFileTrees(socket.project.fileTree || {}, result.fileTree);
+                    const savedProject = await updateFileTree({
+                        projectId: socket.roomId,
+                        userId: socket.user._id,
+                        fileTree: mergedFileTree
+                    });
 
-            io.to(socket.roomId).emit('project-message', {
-                message: result,
-                sender: {
-                    _id: 'ai',
-                    email: 'AI'
+                    if (!savedProject) throw new Error('The project could not be found while saving generated files.');
+
+                    socket.project.fileTree = mergedFileTree;
+                    result.fileTree = mergedFileTree;
+                    result.createdFiles = generatedFiles;
+                    result.text = `${result.text.trim()}\n\nSaved to project files: ${generatedFiles.join(', ')}.`;
                 }
-            })
+
+                io.to(socket.roomId).emit('project-message', {
+                    message: JSON.stringify(result),
+                    sender: { _id: 'ai', email: 'AI' }
+                });
+            } catch (error) {
+                io.to(socket.roomId).emit('project-message', {
+                    message: JSON.stringify({ text: getAiFailureMessage(error) }),
+                    sender: { _id: 'ai', email: 'AI' }
+                });
+                console.error('OpenAI request failed:', {
+                    name: error.name,
+                    code: error.code,
+                    status: error.status,
+                    requestId: error.request_id,
+                    message: error.message,
+                    cause: error.cause?.message
+                });
+            }
 
 
             return
@@ -105,6 +142,11 @@ io.on('connection', socket => {
 
 
 
-server.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-})
+connect().then(() => {
+    server.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+}).catch(error => {
+    console.error('Backend could not start because MongoDB is unavailable:', error.message);
+    process.exitCode = 1;
+});

@@ -1,427 +1,313 @@
-import React, { useState, useEffect, useContext, useRef } from 'react'
-import { UserContext } from '../context/user.context'
-import { useNavigate, useLocation } from 'react-router-dom'
-import axios from '../config/axios'
-import { initializeSocket, receiveMessage, sendMessage } from '../config/socket'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import Markdown from 'markdown-to-jsx'
-import hljs from 'highlight.js';
+import { UserContext } from '../context/user.context'
+import api from '../config/axios'
+import { initializeSocket } from '../config/socket'
 import { getWebContainer } from '../config/webContainer'
+import { preparePreviewFiles } from '../utils/preview'
+import '../styles/workspace.css'
 
-
-function SyntaxHighlightedCode(props) {
-    const ref = useRef(null)
-
-    React.useEffect(() => {
-        if (ref.current && props.className?.includes('lang-') && window.hljs) {
-            window.hljs.highlightElement(ref.current)
-
-            // hljs won't reprocess the element unless this attribute is removed
-            ref.current.removeAttribute('data-highlighted')
-        }
-    }, [ props.className, props.children ])
-
-    return <code {...props} ref={ref} />
+function parseAi(raw) {
+  try { return JSON.parse(raw) } catch { return { text: raw } }
 }
 
-
-const Project = () => {
-
-    const location = useLocation()
-
-    const [ isSidePanelOpen, setIsSidePanelOpen ] = useState(false)
-    const [ isModalOpen, setIsModalOpen ] = useState(false)
-    const [ selectedUserId, setSelectedUserId ] = useState(new Set()) // Initialized as Set
-    const [ project, setProject ] = useState(location.state.project)
-    const [ message, setMessage ] = useState('')
-    const { user } = useContext(UserContext)
-    const messageBox = React.createRef()
-
-    const [ users, setUsers ] = useState([])
-    const [ messages, setMessages ] = useState([]) // New state variable for messages
-    const [ fileTree, setFileTree ] = useState({})
-
-    const [ currentFile, setCurrentFile ] = useState(null)
-    const [ openFiles, setOpenFiles ] = useState([])
-
-    const [ webContainer, setWebContainer ] = useState(null)
-    const [ iframeUrl, setIframeUrl ] = useState(null)
-
-    const [ runProcess, setRunProcess ] = useState(null)
-
-    const handleUserClick = (id) => {
-        setSelectedUserId(prevSelectedUserId => {
-            const newSelectedUserId = new Set(prevSelectedUserId);
-            if (newSelectedUserId.has(id)) {
-                newSelectedUserId.delete(id);
-            } else {
-                newSelectedUserId.add(id);
-            }
-
-            return newSelectedUserId;
-        });
-
-
-    }
-
-
-    function addCollaborators() {
-
-        axios.put("/projects/add-user", {
-            projectId: location.state.project._id,
-            users: Array.from(selectedUserId)
-        }).then(res => {
-            console.log(res.data)
-            setIsModalOpen(false)
-
-        }).catch(err => {
-            console.log(err)
-        })
-
-    }
-
-    const send = () => {
-
-        sendMessage('project-message', {
-            message,
-            sender: user
-        })
-        setMessages(prevMessages => [ ...prevMessages, { sender: user, message } ]) // Update messages state
-        setMessage("")
-
-    }
-
-    function WriteAiMessage(message) {
-
-        const messageObject = JSON.parse(message)
-
-        return (
-            <div
-                className='overflow-auto bg-slate-950 text-white rounded-sm p-2'
-            >
-                <Markdown
-                    children={messageObject.text}
-                    options={{
-                        overrides: {
-                            code: SyntaxHighlightedCode,
-                        },
-                    }}
-                />
-            </div>)
-    }
-
-    useEffect(() => {
-
-        initializeSocket(project._id)
-
-        if (!webContainer) {
-            getWebContainer().then(container => {
-                setWebContainer(container)
-                console.log("container started")
-            })
-        }
-
-
-        receiveMessage('project-message', data => {
-
-            console.log(data)
-            
-            if (data.sender._id == 'ai') {
-
-
-                const message = JSON.parse(data.message)
-
-                console.log(message)
-
-                webContainer?.mount(message.fileTree)
-
-                if (message.fileTree) {
-                    setFileTree(message.fileTree || {})
-                }
-                setMessages(prevMessages => [ ...prevMessages, data ]) // Update messages state
-            } else {
-
-
-                setMessages(prevMessages => [ ...prevMessages, data ]) // Update messages state
-            }
-        })
-
-
-        axios.get(`/projects/get-project/${location.state.project._id}`).then(res => {
-
-            console.log(res.data.project)
-
-            setProject(res.data.project)
-            setFileTree(res.data.project.fileTree || {})
-        })
-
-        axios.get('/users/all').then(res => {
-
-            setUsers(res.data.users)
-
-        }).catch(err => {
-
-            console.log(err)
-
-        })
-
-    }, [])
-
-    function saveFileTree(ft) {
-        axios.put('/projects/update-file-tree', {
-            projectId: project._id,
-            fileTree: ft
-        }).then(res => {
-            console.log(res.data)
-        }).catch(err => {
-            console.log(err)
-        })
-    }
-
-
-    // Removed appendIncomingMessage and appendOutgoingMessage functions
-
-    function scrollToBottom() {
-        messageBox.current.scrollTop = messageBox.current.scrollHeight
-    }
-
-    return (
-        <main className='project-workspace h-screen w-screen flex'>
-            <section className="left relative flex flex-col h-screen min-w-96 bg-slate-300">
-                <header className='flex justify-between items-center p-2 px-4 w-full bg-slate-100 absolute z-10 top-0'>
-                    <button className='flex gap-2' onClick={() => setIsModalOpen(true)}>
-                        <i className="ri-add-fill mr-1"></i>
-                        <p>Add collaborator</p>
-                    </button>
-                    <button onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} className='p-2'>
-                        <i className="ri-group-fill"></i>
-                    </button>
-                </header>
-                <div className="conversation-area pt-14 pb-10 flex-grow flex flex-col h-full relative">
-
-                    <div
-                        ref={messageBox}
-                        className="message-box p-1 flex-grow flex flex-col gap-1 overflow-auto max-h-full scrollbar-hide">
-                        {messages.map((msg, index) => (
-                            <div key={index} className={`${msg.sender._id === 'ai' ? 'max-w-80' : 'max-w-52'} ${msg.sender._id == user._id.toString() && 'ml-auto'}  message flex flex-col p-2 bg-slate-50 w-fit rounded-md`}>
-                                <small className='opacity-65 text-xs'>{msg.sender.email}</small>
-                                <div className='text-sm'>
-                                    {msg.sender._id === 'ai' ?
-                                        WriteAiMessage(msg.message)
-                                        : <p>{msg.message}</p>}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="inputField w-full flex absolute bottom-0">
-                        <input
-                            value={message}
-                            onChange={(e) => setMessage(e.target.value)}
-                            className='p-2 px-4 border-none outline-none flex-grow' type="text" placeholder='Enter message' />
-                        <button
-                            onClick={send}
-                            className='px-5 bg-slate-950 text-white'><i className="ri-send-plane-fill"></i></button>
-                    </div>
-                </div>
-                <div className={`sidePanel w-full h-full flex flex-col gap-2 bg-slate-50 absolute transition-all ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'} top-0`}>
-                    <header className='flex justify-between items-center px-4 p-2 bg-slate-200'>
-
-                        <h1
-                            className='font-semibold text-lg'
-                        >Collaborators</h1>
-
-                        <button onClick={() => setIsSidePanelOpen(!isSidePanelOpen)} className='p-2'>
-                            <i className="ri-close-fill"></i>
-                        </button>
-                    </header>
-                    <div className="users flex flex-col gap-2">
-
-                        {project.users && project.users.map(user => {
-
-
-                            return (
-                                <div className="user cursor-pointer hover:bg-slate-200 p-2 flex gap-2 items-center">
-                                    <div className='aspect-square rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
-                                        <i className="ri-user-fill absolute"></i>
-                                    </div>
-                                    <h1 className='font-semibold text-lg'>{user.email}</h1>
-                                </div>
-                            )
-
-
-                        })}
-                    </div>
-                </div>
-            </section>
-
-            <section className="right  bg-red-50 flex-grow h-full flex">
-
-                <div className="explorer h-full max-w-64 min-w-52 bg-slate-200">
-                    <div className="file-tree w-full">
-                        {
-                            Object.keys(fileTree).map((file, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => {
-                                        setCurrentFile(file)
-                                        setOpenFiles([ ...new Set([ ...openFiles, file ]) ])
-                                    }}
-                                    className="tree-element cursor-pointer p-2 px-4 flex items-center gap-2 bg-slate-300 w-full">
-                                    <p
-                                        className='font-semibold text-lg'
-                                    >{file}</p>
-                                </button>))
-
-                        }
-                    </div>
-
-                </div>
-
-
-                <div className="code-editor flex flex-col flex-grow h-full shrink">
-
-                    <div className="top flex justify-between w-full">
-
-                        <div className="files flex">
-                            {
-                                openFiles.map((file, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => setCurrentFile(file)}
-                                        className={`open-file cursor-pointer p-2 px-4 flex items-center w-fit gap-2 bg-slate-300 ${currentFile === file ? 'bg-slate-400' : ''}`}>
-                                        <p
-                                            className='font-semibold text-lg'
-                                        >{file}</p>
-                                    </button>
-                                ))
-                            }
-                        </div>
-
-                        <div className="actions flex gap-2">
-                            <button
-                                onClick={async () => {
-                                    await webContainer.mount(fileTree)
-
-
-                                    const installProcess = await webContainer.spawn("npm", [ "install" ])
-
-
-
-                                    installProcess.output.pipeTo(new WritableStream({
-                                        write(chunk) {
-                                            console.log(chunk)
-                                        }
-                                    }))
-
-                                    if (runProcess) {
-                                        runProcess.kill()
-                                    }
-
-                                    let tempRunProcess = await webContainer.spawn("npm", [ "start" ]);
-
-                                    tempRunProcess.output.pipeTo(new WritableStream({
-                                        write(chunk) {
-                                            console.log(chunk)
-                                        }
-                                    }))
-
-                                    setRunProcess(tempRunProcess)
-
-                                    webContainer.on('server-ready', (port, url) => {
-                                        console.log(port, url)
-                                        setIframeUrl(url)
-                                    })
-
-                                }}
-                                className='p-2 px-4 bg-slate-300 text-white'
-                            >
-                                run
-                            </button>
-
-
-                        </div>
-                    </div>
-                    <div className="bottom flex flex-grow max-w-full shrink overflow-auto">
-                        {
-                            fileTree[ currentFile ] && (
-                                <div className="code-editor-area h-full overflow-auto flex-grow bg-slate-50">
-                                    <pre
-                                        className="hljs h-full">
-                                        <code
-                                            className="hljs h-full outline-none"
-                                            contentEditable
-                                            suppressContentEditableWarning
-                                            onBlur={(e) => {
-                                                const updatedContent = e.target.innerText;
-                                                const ft = {
-                                                    ...fileTree,
-                                                    [ currentFile ]: {
-                                                        file: {
-                                                            contents: updatedContent
-                                                        }
-                                                    }
-                                                }
-                                                setFileTree(ft)
-                                                saveFileTree(ft)
-                                            }}
-                                            dangerouslySetInnerHTML={{ __html: hljs.highlight('javascript', fileTree[ currentFile ].file.contents).value }}
-                                            style={{
-                                                whiteSpace: 'pre-wrap',
-                                                paddingBottom: '25rem',
-                                                counterSet: 'line-numbering',
-                                            }}
-                                        />
-                                    </pre>
-                                </div>
-                            )
-                        }
-                    </div>
-
-                </div>
-
-                {iframeUrl && webContainer &&
-                    (<div className="flex min-w-96 flex-col h-full">
-                        <div className="address-bar">
-                            <input type="text"
-                                onChange={(e) => setIframeUrl(e.target.value)}
-                                value={iframeUrl} className="w-full p-2 px-4 bg-slate-200" />
-                        </div>
-                        <iframe src={iframeUrl} className="w-full h-full"></iframe>
-                    </div>)
-                }
-
-
-            </section>
-
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                    <div className="bg-white p-4 rounded-md w-96 max-w-full relative">
-                        <header className='flex justify-between items-center mb-4'>
-                            <h2 className='text-xl font-semibold'>Select User</h2>
-                            <button onClick={() => setIsModalOpen(false)} className='p-2'>
-                                <i className="ri-close-fill"></i>
-                            </button>
-                        </header>
-                        <div className="users-list flex flex-col gap-2 mb-16 max-h-96 overflow-auto">
-                            {users.map(user => (
-                                <div key={user.id} className={`user cursor-pointer hover:bg-slate-200 ${Array.from(selectedUserId).indexOf(user._id) != -1 ? 'bg-slate-200' : ""} p-2 flex gap-2 items-center`} onClick={() => handleUserClick(user._id)}>
-                                    <div className='aspect-square relative rounded-full w-fit h-fit flex items-center justify-center p-5 text-white bg-slate-600'>
-                                        <i className="ri-user-fill absolute"></i>
-                                    </div>
-                                    <h1 className='font-semibold text-lg'>{user.email}</h1>
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            onClick={addCollaborators}
-                            className='absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-blue-600 text-white rounded-md'>
-                            Add Collaborators
-                        </button>
-                    </div>
-                </div>
-            )}
-        </main>
-    )
+function putAtPath(tree, path, value) {
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  if (!parts.length) return tree
+  const next = structuredClone(tree || {})
+  let cursor = next
+  parts.slice(0, -1).forEach(part => {
+    if (!cursor[part]?.directory) cursor[part] = { directory: {} }
+    cursor = cursor[part].directory
+  })
+  const last = parts.at(-1)
+  if (value.directory && cursor[last]?.directory) {
+    cursor[last] = { directory: { ...cursor[last].directory, ...value.directory } }
+  } else {
+    cursor[last] = value
+  }
+  return next
 }
 
-export default Project
+function getAtPath(tree, path) {
+  const parts = path.split(/[\\/]+/).filter(Boolean)
+  let cursor = tree
+  for (const part of parts.slice(0, -1)) {
+    cursor = cursor?.[part]?.directory
+    if (!cursor) return null
+  }
+  return cursor?.[parts.at(-1)] || null
+}
+
+function removeAtPath(tree, path) {
+  const parts = path.split('/').filter(Boolean)
+  if (!parts.length) return tree
+  const next = structuredClone(tree || {})
+  const parents = []
+  let cursor = next
+  for (const part of parts.slice(0, -1)) {
+    if (!cursor[part]?.directory) return next
+    parents.push([cursor, part])
+    cursor = cursor[part].directory
+  }
+  delete cursor[parts.at(-1)]
+  for (let index = parents.length - 1; index >= 0; index -= 1) {
+    const [parent, name] = parents[index]
+    if (Object.keys(parent[name].directory).length) break
+    delete parent[name]
+  }
+  return next
+}
+
+function normalizeTree(tree = {}) {
+  let normalized = {}
+  Object.entries(tree).forEach(([path, node]) => {
+    if (node?.directory) {
+      normalized = putAtPath(normalized, path, { directory: normalizeTree(node.directory) })
+    } else if (node?.file) {
+      normalized = putAtPath(normalized, path, node)
+    }
+  })
+  return normalized
+}
+
+function collectFolders(tree, prefix = '') {
+  return Object.entries(tree || {}).flatMap(([name, node]) => {
+    if (!node?.directory) return []
+    const path = prefix ? prefix + '/' + name : name
+    return [path, ...collectFolders(node.directory, path)]
+  })
+}
+
+function collectEntries(tree, expanded, prefix = '', depth = 0) {
+  return Object.entries(tree || {}).flatMap(([name, node]) => {
+    const path = prefix ? prefix + '/' + name : name
+    if (node?.directory) {
+      return [
+        { type: 'directory', path, depth },
+        ...(expanded.has(path) ? collectEntries(node.directory, expanded, path, depth + 1) : [])
+      ]
+    }
+    return node?.file ? [{ type: 'file', path, depth }] : []
+  })
+}
+
+export default function Project() {
+  const { projectId } = useParams()
+  const { user } = useContext(UserContext)
+  const [project, setProject] = useState(null)
+  const [users, setUsers] = useState([])
+  const [selected, setSelected] = useState(new Set())
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createKind, setCreateKind] = useState('file')
+  const [createPath, setCreatePath] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState('')
+  const [expanded, setExpanded] = useState(new Set())
+  const [saving, setSaving] = useState(false)
+  const [messages, setMessages] = useState([])
+  const [message, setMessage] = useState('')
+  const [files, setFiles] = useState({})
+  const [file, setFile] = useState('')
+  const [draft, setDraft] = useState('')
+  const [container, setContainer] = useState(null)
+  const [preview, setPreview] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState('Connecting...')
+  const [error, setError] = useState('')
+  const socketRef = useRef(null)
+  const processRef = useRef(null)
+  const bottomRef = useRef(null)
+  const messageInputRef = useRef(null)
+  const fileTreeRevisionRef = useRef(0)
+
+  useEffect(() => {
+    let active = true
+    const socket = initializeSocket(projectId)
+    socketRef.current = socket
+    socket.on('connect', () => { if (active) setStatus('Connected') })
+    socket.on('connect_error', err => { if (active) setStatus('Chat unavailable: ' + err.message) })
+    socket.on('project-message', data => {
+      if (!active) return
+      setMessages(previous => [...previous, data])
+      if (data.sender?._id === 'ai') {
+        const response = parseAi(data.message)
+        const tree = response.fileTree
+        if (tree && typeof tree === 'object') {
+          const normalized = normalizeTree(tree)
+          fileTreeRevisionRef.current += 1
+          setFiles(normalized)
+          setExpanded(new Set(collectFolders(normalized)))
+          const firstCreatedFile = response.createdFiles?.[0]
+          const firstFile = collectEntries(normalized, new Set(collectFolders(normalized))).find(entry => entry.type === 'file')
+          const pathToOpen = firstCreatedFile || firstFile?.path
+          if (pathToOpen) setFile(pathToOpen)
+          const savedCount = response.createdFiles?.length || (firstFile ? 1 : 0)
+          setStatus(savedCount ? `Saved ${savedCount} AI-generated file${savedCount === 1 ? '' : 's'}` : 'Project files updated')
+        }
+      }
+    })
+    const fileTreeRevisionAtLoad = fileTreeRevisionRef.current
+    api.get('/projects/get-project/' + projectId).then(({ data }) => {
+      if (active) {
+        const normalized = normalizeTree(data.project.fileTree || {})
+        setProject(data.project)
+        if (fileTreeRevisionRef.current === fileTreeRevisionAtLoad) {
+          setFiles(normalized)
+          setExpanded(new Set(collectFolders(normalized)))
+          const loadedFiles = collectEntries(normalized, new Set(collectFolders(normalized))).filter(entry => entry.type === 'file')
+          setFile(current => loadedFiles.some(entry => entry.path === current) ? current : loadedFiles[0]?.path || '')
+        }
+      }
+    }).catch(err => { if (active) setError(err.response?.data?.error || 'Could not load this project.') })
+    api.get('/users/all').then(({ data }) => { if (active) setUsers(data.users || []) }).catch(() => {})
+    getWebContainer().then(instance => { if (active) setContainer(instance) }).catch(() => {
+      if (active) setStatus('Preview unavailable in this browser')
+    })
+    return () => { active = false; socket.disconnect(); socketRef.current = null; processRef.current?.kill() }
+  }, [projectId])
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { setDraft(getAtPath(files, file)?.file?.contents || '') }, [file, files])
+
+  function send(event) {
+    event.preventDefault()
+    const text = message.trim()
+    if (!text || !socketRef.current?.connected) return
+    const item = { message: text, sender: { _id: user._id, email: user.email } }
+    socketRef.current.emit('project-message', item)
+    setMessages(previous => [...previous, item])
+    setMessage('')
+  }
+
+  function promptStarter() {
+    setMessage('@ai Create a responsive React dashboard in src/App.jsx with a sidebar, welcome header, and summary cards.')
+    messageInputRef.current?.focus()
+  }
+
+  async function save() {
+    if (!file) return
+    const next = putAtPath(files, file, { file: { contents: draft } })
+    setSaving(true)
+    try {
+      await api.put('/projects/update-file-tree', { projectId, fileTree: next })
+      fileTreeRevisionRef.current += 1
+      setFiles(next)
+      setStatus('Saved ' + file)
+    } catch (err) { setError(err.response?.data?.error || 'Could not save the file.') }
+    finally { setSaving(false) }
+  }
+
+  async function deleteFile() {
+    if (!deleteTarget) return
+    const deletedPath = deleteTarget
+    const next = removeAtPath(files, deletedPath)
+    try {
+      await api.put('/projects/update-file-tree', { projectId, fileTree: next })
+      fileTreeRevisionRef.current += 1
+      setFiles(next)
+      if (file === deletedPath) setFile('')
+      setDeleteTarget('')
+      setStatus('Deleted ' + deletedPath)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not delete the file.')
+    }
+  }
+
+  async function createEntry(event) {
+    event.preventDefault()
+    const path = createPath.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    const parts = path.split('/').filter(Boolean)
+    if (!parts.length || parts.some(part => part === '.' || part === '..')) {
+      setError('Enter a valid file or folder name.')
+      return
+    }
+    const currentEntries = collectEntries(files, new Set(collectFolders(files)))
+    if (currentEntries.some(entry => entry.path === path)) {
+      setError('That path already exists.')
+      return
+    }
+    const parentIsFile = parts.slice(0, -1).some((_part, index) => {
+      const parentPath = parts.slice(0, index + 1).join('/')
+      return currentEntries.some(entry => entry.path === parentPath && entry.type === 'file')
+    })
+    if (parentIsFile) {
+      setError('A file already uses part of that path.')
+      return
+    }
+    const next = putAtPath(files, path, createKind === 'folder' ? { directory: {} } : { file: { contents: '' } })
+    try {
+      await api.put('/projects/update-file-tree', { projectId, fileTree: next })
+      fileTreeRevisionRef.current += 1
+      setFiles(next)
+      setExpanded(new Set([...collectFolders(next), ...parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join('/'))]))
+      if (createKind === 'file') setFile(path)
+      setCreateOpen(false)
+      setCreatePath('')
+      setError('')
+      setStatus((createKind === 'file' ? 'Created ' : 'Created folder ') + path)
+    } catch (err) { setError(err.response?.data?.error || 'Could not create the item.') }
+  }
+
+  async function invite() {
+    if (!selected.size) return
+    try {
+      await api.put('/projects/add-user', { projectId, users: [...selected] })
+      const { data } = await api.get('/projects/get-project/' + projectId)
+      setProject(data.project)
+      setSelected(new Set())
+      setInviteOpen(false)
+      setStatus('Collaborators added')
+    } catch (err) { setError(err.response?.data?.error || 'Could not add collaborators.') }
+  }
+
+  async function run() {
+    if (!container || !Object.keys(files).length || busy) return
+    setBusy(true); setError(''); setStatus('Installing dependencies...')
+    try {
+      processRef.current?.kill()
+      await container.mount(preparePreviewFiles(files))
+      const install = await container.spawn('npm', ['install'])
+      const installOutput = []
+      install.output.pipeTo(new WritableStream({ write: chunk => installOutput.push(chunk) })).catch(() => {})
+      const installExitCode = await install.exit
+      if (installExitCode !== 0) throw new Error(`Dependency install failed: ${installOutput.join('').trim().slice(-600) || `npm exited with code ${installExitCode}`}`)
+      setStatus('Starting preview...')
+      const ready = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Preview timed out')), 30000)
+        container.on('server-ready', (_port, url) => { clearTimeout(timer); resolve(url) })
+      })
+      processRef.current = await container.spawn('npm', ['start'])
+      setPreview(await ready)
+      setStatus('Preview running')
+    } catch (err) { setError('Preview failed: ' + err.message) }
+    finally { setBusy(false) }
+  }
+
+  if (error && !project) return <main className="workspace-fallback"><h1>Workspace unavailable</h1><p>{error}</p><Link to="/">Back to projects</Link></main>
+  const entries = collectEntries(files, expanded)
+  const fileCount = collectEntries(files, new Set(collectFolders(files))).filter(entry => entry.type === 'file').length
+  return <main className="studio-workspace">
+    <aside className="studio-chat">
+      <header className="studio-chat-header"><Link className="studio-back" to="/" aria-label="Back to projects">←</Link><div><span className="studio-kicker">PROJECT WORKSPACE</span><h1>{project?.name || 'Loading...'}</h1></div><button onClick={() => setMembersOpen(!membersOpen)} aria-label="Collaborators"><i className="ri-group-line" /></button></header>
+      {membersOpen ? <div className="studio-members"><div className="studio-panel-title"><h2>Collaborators</h2><button onClick={() => setMembersOpen(false)} aria-label="Close">×</button></div>{project?.users?.map(member => <div key={member._id} className="studio-member"><span className="studio-avatar">{member.email?.[0]?.toUpperCase()}</span>{member.email}</div>)}<button className="studio-invite" onClick={() => setInviteOpen(true)}>+ Add collaborator</button></div> : <><div className="studio-chat-intro"><span>✳</span><strong>Think together, build together.</strong><p>Chat with your team. Mention <code>@ai</code> for coding help.</p></div><div className="studio-messages">{messages.map((item, index) => {
+        const ai = item.sender?._id === 'ai'
+        const own = item.sender?._id === user?._id
+        const response = ai ? parseAi(item.message) : null
+        return <div key={index} className={'studio-message ' + (own ? 'own ' : '') + (ai ? 'ai' : '')}>
+          <small>{ai ? 'AI assistant' : own ? 'You' : item.sender?.email || 'Member'}</small>
+          {ai ? <>
+            <Markdown>{response.text || 'AI response received.'}</Markdown>
+            {response.createdFiles?.length > 0 && <div className="studio-ai-artifacts"><span>Saved in project</span>{response.createdFiles.map(path => <button type="button" key={path} onClick={() => setFile(path)}><i className="ri-file-code-line" />{path}</button>)}</div>}
+          </> : <p>{item.message}</p>}
+        </div>
+      })}<div ref={bottomRef} /></div><form className="studio-composer" onSubmit={send}><label className="sr-only" htmlFor="message">Message</label><input ref={messageInputRef} id="message" value={message} onChange={event => setMessage(event.target.value)} placeholder="Message your team or @ai..." /><button disabled={!message.trim()} aria-label="Send message"><i className="ri-send-plane-fill" /></button></form></>}
+    </aside>
+    <section className="studio-main"><header className="studio-toolbar"><div><span className="studio-kicker">EDITOR</span><strong>{file || 'Project files'}</strong></div><div className="studio-toolbar-actions"><span>{status}</span><button className="studio-run" onClick={run} disabled={!container || !fileCount || busy}><i className="ri-play-fill" /> {busy ? 'Starting...' : 'Run preview'}</button></div></header>{error && <div className="studio-error" role="alert">{error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}<div className="studio-content"><nav className="studio-files" aria-label="Project files"><div className="studio-files-title"><span>FILES <b>{fileCount}</b></span><span className="studio-file-actions"><button title="Create file" aria-label="Create file" onClick={() => { setCreateKind('file'); setCreatePath(''); setCreateOpen(true) }}>＋</button><button title="Create folder" aria-label="Create folder" onClick={() => { setCreateKind('folder'); setCreatePath(''); setCreateOpen(true) }}><i className="ri-folder-add-line" /></button></span></div>{entries.length ? entries.map(entry => entry.type === 'directory' ? <button key={'dir-' + entry.path} className="studio-tree-entry studio-folder" style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setExpanded(previous => { const next = new Set(previous); next.has(entry.path) ? next.delete(entry.path) : next.add(entry.path); return next })}><i className={expanded.has(entry.path) ? 'ri-folder-open-line' : 'ri-folder-line'} />{entry.path.split('/').at(-1)}</button> : <button key={'file-' + entry.path} className={'studio-tree-entry ' + (file === entry.path ? 'active' : '')} style={{ paddingLeft: 10 + entry.depth * 14 }} onClick={() => setFile(entry.path)}><i className="ri-file-code-line" />{entry.path.split('/').at(-1)}</button>) : <div className="studio-files-empty"><p>No saved files yet.</p><button onClick={() => { setCreateKind('file'); setCreatePath(''); setCreateOpen(true) }}>Create a file</button><button className="studio-empty-ai" onClick={promptStarter}>Ask AI to build one</button><small>AI-generated files appear here and are saved to this project.</small></div>}</nav><div className="studio-editor"><div className="studio-editor-tab">{file ? <><span><i className="ri-file-code-line" /> {file}</span><div className="studio-editor-actions"><button className="studio-delete-file" onClick={() => setDeleteTarget(file)} title="Delete file"><i className="ri-delete-bin-line" /> Delete</button><button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save changes'}</button></div></> : <span>Editor</span>}</div>{file ? <textarea autoFocus aria-label={'Edit ' + file} placeholder={'Start writing in ' + file + '...'} spellCheck="false" value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save() } }} /> : <div className="studio-editor-empty"><span>⌘</span><h2>Your code workspace</h2><p>Create a file or ask the AI assistant to build a starter project.</p><div className="studio-empty-actions"><button onClick={() => { setCreateKind('file'); setCreatePath(''); setCreateOpen(true) }}>＋ New file</button><button className="studio-empty-ai" onClick={promptStarter}>Ask AI to build a dashboard</button></div></div>}</div>{preview && <div className="studio-preview"><div><span>LIVE PREVIEW</span><a href={preview} target="_blank" rel="noreferrer">Open ↗</a></div><iframe title="Project preview" src={preview} /></div>}</div></section>
+    {deleteTarget && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setDeleteTarget('')}><div className="create-modal studio-delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-file-title"><button className="modal-close" onClick={() => setDeleteTarget('')} aria-label="Close">×</button><div className="eyebrow">PROJECT FILES</div><h2 id="delete-file-title">Delete this file?</h2><p><code>{deleteTarget}</code> will be removed from this project. Unsaved edits will be discarded.</p><div className="modal-actions"><button className="secondary-button" onClick={() => setDeleteTarget('')}>Cancel</button><button className="studio-confirm-delete" onClick={deleteFile}>Delete file</button></div></div></div>}
+    {createOpen && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setCreateOpen(false)}><form className="create-modal studio-create-modal" onSubmit={createEntry}><button type="button" className="modal-close" onClick={() => setCreateOpen(false)} aria-label="Close">×</button><div className="eyebrow">PROJECT FILES</div><h2>Create a {createKind}</h2><p>Use a name like <code>{createKind === 'file' ? 'src/App.jsx' : 'src/components'}</code>. Missing folders will be created automatically.</p><label htmlFor="new-item-path">{createKind === 'file' ? 'File path' : 'Folder path'}</label><input id="new-item-path" autoFocus value={createPath} onChange={event => setCreatePath(event.target.value)} placeholder={createKind === 'file' ? 'e.g. src/App.jsx' : 'e.g. src/components'} required/><div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" className="primary-button">Create {createKind}</button></div></form></div>}
+    {inviteOpen && <div className="modal-backdrop" onMouseDown={event => event.target === event.currentTarget && setInviteOpen(false)}><div className="create-modal"><button className="modal-close" onClick={() => setInviteOpen(false)} aria-label="Close">×</button><div className="eyebrow">YOUR TEAM</div><h2>Add collaborators</h2><p>Choose registered people to invite.</p><div className="studio-user-list">{users.filter(candidate => !project?.users?.some(member => member._id === candidate._id)).map(candidate => <label key={candidate._id}><input type="checkbox" checked={selected.has(candidate._id)} onChange={() => setSelected(previous => { const next = new Set(previous); next.has(candidate._id) ? next.delete(candidate._id) : next.add(candidate._id); return next })} />{candidate.email}</label>)}</div><div className="modal-actions"><button className="secondary-button" onClick={() => setInviteOpen(false)}>Cancel</button><button className="primary-button" onClick={invite} disabled={!selected.size}>Add selected</button></div></div></div>}
+  </main>
+}

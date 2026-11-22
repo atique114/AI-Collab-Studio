@@ -73,8 +73,6 @@ export const addUsersToProject = async ({ projectId, users, userId }) => {
         users: userId
     })
 
-    console.log(project)
-
     if (!project) {
         throw new Error("User not belong to this project")
     }
@@ -97,7 +95,7 @@ export const addUsersToProject = async ({ projectId, users, userId }) => {
 
 }
 
-export const getProjectById = async ({ projectId }) => {
+export const getProjectById = async ({ projectId, userId }) => {
     if (!projectId) {
         throw new Error("projectId is required")
     }
@@ -107,13 +105,14 @@ export const getProjectById = async ({ projectId }) => {
     }
 
     const project = await projectModel.findOne({
-        _id: projectId
-    }).populate('users')
+        _id: projectId,
+        users: userId
+    }).populate('users', 'email')
 
     return project;
 }
 
-export const updateFileTree = async ({ projectId, fileTree }) => {
+export const updateFileTree = async ({ projectId, fileTree, userId }) => {
     if (!projectId) {
         throw new Error("projectId is required")
     }
@@ -127,7 +126,8 @@ export const updateFileTree = async ({ projectId, fileTree }) => {
     }
 
     const project = await projectModel.findOneAndUpdate({
-        _id: projectId
+        _id: projectId,
+        users: userId
     }, {
         fileTree
     }, {

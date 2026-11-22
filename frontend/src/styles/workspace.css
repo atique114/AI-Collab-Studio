@@ -1,0 +1,363 @@
+.studio-workspace {
+  height: 100dvh;
+  min-height: 620px;
+  background: #eef2e9;
+  color: #263126;
+}
+
+.studio-chat {
+  width: clamp(292px, 23vw, 360px);
+  min-width: 270px;
+  border-right: 1px solid #344133;
+}
+
+.studio-chat-header,
+.studio-toolbar {
+  height: 72px;
+  flex: 0 0 72px;
+}
+
+.studio-chat-intro {
+  margin: 16px 14px 0;
+  padding: 17px 18px;
+  box-shadow: 0 12px 24px #111a100e;
+}
+
+.studio-messages {
+  gap: 13px;
+  padding: 18px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: #62735b transparent;
+}
+
+.studio-message {
+  max-width: min(92%, 420px);
+  padding: 12px 14px;
+  border-radius: 13px;
+  font-size: 12px;
+  line-height: 1.65;
+  box-shadow: 0 5px 14px #0c120b12;
+}
+
+.studio-message.ai {
+  border-color: #50634a;
+  background: #344631;
+}
+
+.studio-message.ai p:last-child {
+  margin-bottom: 0;
+}
+
+.studio-ai-artifacts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid #71826966;
+}
+
+.studio-ai-artifacts > span {
+  width: 100%;
+  color: #c4d1bb;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.studio-ai-artifacts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 1px solid #71826999;
+  border-radius: 7px;
+  background: #263725;
+  color: #e0efcf;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-ai-artifacts button:hover {
+  border-color: #d7f275;
+  background: #3b5036;
+}
+
+.studio-composer {
+  padding: 12px 13px 14px;
+  background: #20291f;
+}
+
+.studio-composer input {
+  min-height: 44px;
+  border-radius: 10px;
+}
+
+.studio-composer button {
+  width: 42px;
+  min-width: 42px;
+  transition: transform .16s ease, background .16s ease;
+}
+
+.studio-composer button:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: #e4fb91;
+}
+
+.studio-toolbar {
+  padding: 0 24px;
+  box-shadow: 0 4px 12px #26312608;
+}
+
+.studio-toolbar strong {
+  max-width: min(45vw, 620px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-toolbar-actions {
+  gap: 12px;
+}
+
+.studio-run {
+  min-height: 40px;
+  padding: 0 15px;
+  transition: transform .16s ease, background .16s ease;
+}
+
+.studio-run:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: #364a31;
+}
+
+.studio-content {
+  background: #fff;
+}
+
+.studio-files {
+  width: 224px;
+  flex: 0 0 224px;
+  padding: 17px 11px;
+  background: #f6f8f3;
+}
+
+.studio-files-title {
+  padding: 0 7px 13px;
+}
+
+.studio-files .studio-tree-entry {
+  min-height: 36px;
+  border: 1px solid transparent;
+  font-size: 11px;
+}
+
+.studio-files .studio-tree-entry.active {
+  border-color: #dbe6d0;
+  background: #eaf2e2;
+  color: #2e4b26;
+  font-weight: 700;
+}
+
+.studio-files-empty {
+  padding: 21px 8px 12px;
+}
+
+.studio-files-empty button,
+.studio-editor-empty button {
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.studio-files-empty .studio-empty-ai,
+.studio-editor-empty .studio-empty-ai {
+  border-color: #344633;
+  background: #344633;
+  color: #e6f4d6;
+}
+
+.studio-files-empty .studio-empty-ai:hover,
+.studio-editor-empty .studio-empty-ai:hover {
+  background: #455b3f;
+}
+
+.studio-editor-tab {
+  height: 48px;
+  flex: 0 0 48px;
+  padding: 0 18px;
+}
+
+.studio-editor-tab button {
+  min-height: 32px;
+  padding: 6px 11px;
+  font-size: 10px;
+}
+
+.studio-editor textarea {
+  padding: 24px 28px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.studio-editor-empty {
+  max-width: 500px;
+  padding: 28px;
+}
+
+.studio-editor-empty > span {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 17px;
+  border: 1px solid #e2e9d9;
+  border-radius: 18px;
+  background: #f3f7eb;
+  font-size: 32px;
+  line-height: 58px;
+}
+
+.studio-editor-empty h2 {
+  font-size: 19px;
+}
+
+.studio-editor-empty p {
+  margin: 8px 0 15px;
+  line-height: 1.6;
+}
+
+.studio-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.studio-error {
+  border-bottom: 1px solid #f1d5ce;
+  font-size: 12px;
+}
+
+.studio-workspace button:focus-visible,
+.studio-workspace input:focus-visible,
+.studio-workspace textarea:focus-visible,
+.studio-workspace a:focus-visible {
+  outline: 2px solid #a8c56a;
+  outline-offset: 2px;
+}
+
+@media (max-width: 1120px) {
+  .studio-chat {
+    width: 288px;
+    min-width: 260px;
+  }
+
+  .studio-files {
+    width: 195px;
+    flex-basis: 195px;
+  }
+}
+
+@media (max-width: 700px) {
+  .studio-workspace {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .studio-chat {
+    height: 390px;
+    min-height: 320px;
+  }
+
+  .studio-chat-header,
+  .studio-toolbar {
+    height: 66px;
+    flex-basis: 66px;
+  }
+
+  .studio-chat-intro {
+    display: block;
+    margin: 10px 12px 0;
+    padding: 12px 14px;
+  }
+
+  .studio-chat-intro > span {
+    display: none;
+  }
+
+  .studio-chat-intro p {
+    margin-top: 4px;
+  }
+
+  .studio-main {
+    height: auto;
+    min-height: 620px;
+  }
+
+  .studio-files {
+    width: 176px;
+    flex-basis: 176px;
+  }
+
+  .studio-toolbar {
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .studio-chat {
+    height: 370px;
+  }
+
+  .studio-toolbar-actions {
+    gap: 6px;
+  }
+
+  .studio-run {
+    min-height: 36px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  .studio-content {
+    flex-direction: column;
+  }
+
+  .studio-files {
+    width: 100%;
+    max-height: 190px;
+    flex: 0 0 auto;
+    border-right: 0;
+    border-bottom: 1px solid #e3e9de;
+  }
+
+  .studio-editor {
+    min-height: 55vh;
+  }
+
+  .studio-editor-tab {
+    padding: 0 10px;
+  }
+
+  .studio-editor-actions {
+    gap: 4px;
+  }
+
+  .studio-editor textarea {
+    min-height: 40vh;
+    padding: 14px;
+    font-size: 11px;
+  }
+
+  .studio-preview {
+    width: 100%;
+    min-width: 0;
+    height: 60vh;
+    border-top: 1px solid #e3e9de;
+    border-left: 0;
+  }
+}

@@ -1,41 +1,24 @@
-import React, { useContext, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useContext, useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
+import api from '../config/axios'
 import { UserContext } from '../context/user.context'
 
-const UserAuth = ({ children }) => {
+export default function UserAuth({ children }) {
+  const { user, setUser } = useContext(UserContext)
+  const [checking, setChecking] = useState(Boolean(localStorage.getItem('token')))
 
-    const { user } = useContext(UserContext)
-    const [ loading, setLoading ] = useState(true)
-    const token = localStorage.getItem('token')
-    const navigate = useNavigate()
+  useEffect(() => {
+    if (!localStorage.getItem('token') || user) return
+    let active = true
+    api.get('/users/profile').then(({ data }) => {
+      if (active) setUser(data.user)
+    }).catch(() => {
+      localStorage.removeItem('token')
+    }).finally(() => { if (active) setChecking(false) })
+    return () => { active = false }
+  }, [setUser, user])
 
-
-
-
-    useEffect(() => {
-        if (user) {
-            setLoading(false)
-        }
-
-        if (!token) {
-            navigate('/login')
-        }
-
-        if (!user) {
-            navigate('/login')
-        }
-
-    }, [])
-
-    if (loading) {
-        return <div>Loading...</div>
-    }
-
-
-    return (
-        <>
-            {children}</>
-    )
+  if (user) return children
+  if (checking) return <div className="auth-loading">Loading your workspace...</div>
+  return <Navigate to="/login" replace />
 }
-
-export default UserAuth
