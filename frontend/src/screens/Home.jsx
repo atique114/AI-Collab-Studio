@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { UserContext } from '../context/user.context'
 import axios from '../config/axios'
+import LogoutButton from '../components/LogoutButton'
 
 const Home = () => {
     const { user } = useContext(UserContext)
@@ -37,7 +38,7 @@ const Home = () => {
                 <div className="rail-footer"><div className="avatar">{user?.email?.[0]?.toUpperCase() || 'U'}</div><div className="rail-user"><strong>{user?.email?.split('@')[0] || 'Your account'}</strong><small>Workspace member</small></div></div>
             </aside>
             <section className="dashboard-content">
-                <header className="dashboard-topbar"><span className="crumb">Workspace <span>/</span> Projects</span><div className="topbar-profile"><span className="status-dot"/> All systems ready <div className="avatar small">{user?.email?.[0]?.toUpperCase() || 'U'}</div></div></header>
+                <header className="dashboard-topbar"><span className="crumb">Workspace <span>/</span> Projects</span><div className="topbar-profile"><span className="status-dot"/> <span className="dashboard-status">All systems ready</span><div className="avatar small">{user?.email?.[0]?.toUpperCase() || 'U'}</div><LogoutButton className="dashboard-logout" compactOnSmall /></div></header>
                 <div className="dashboard-main">
                     <div className="welcome-row"><div><div className="eyebrow">YOUR WORKSPACE</div><h1>Build something<br/><em>brilliant together.</em></h1><p className="welcome-copy">Your ideas, your team, and a little help from AI — all in one place.</p></div><div className="welcome-orbit"><div className="orbit-core">✳</div><span className="orbit-tag tag-one">AI assist</span><span className="orbit-tag tag-two">Live collab</span><span className="orbit-tag tag-three">Code &amp; preview</span></div></div>
                     <div className="section-heading"><div><h2>Projects <span className="count-pill">{projects.length}</span></h2><p>Pick up where you left off, or start fresh.</p></div><button className="primary-button" onClick={() => { setError(''); setIsModalOpen(true) }}><span>＋</span> New project</button></div>
