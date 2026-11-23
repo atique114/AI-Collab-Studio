@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import projectModel from './models/project.model.js';
+import projectMessageModel from './models/project-message.model.js';
 import { generateResult, getAiFailureMessage } from './services/ai.service.js';
 import { collectFilePaths, mergeFileTrees } from './services/file-tree.service.js';
 import { updateFileTree } from './services/project.service.js';
@@ -21,6 +22,7 @@ const io = new Server(server, {
         origin: '*'
     }
 });
+app.set('io', io);
 
 
 io.use(async (socket, next) => {
@@ -74,11 +76,31 @@ io.on('connection', socket => {
     socket.on('project-message', async data => {
         const message = typeof data?.message === 'string' ? data.message.trim() : '';
         if (!message || message.length > 10000) return;
+        const aiRequestId = message.includes('@ai') && typeof data?.aiRequestId === 'string'
+            ? data.aiRequestId.slice(0, 100)
+            : undefined;
 
-        const payload = { message, sender: { _id: socket.user._id, email: socket.user.email } };
+        try {
+        const currentProject = await projectModel.findOne({
+            _id: socket.roomId,
+            users: socket.user._id
+        });
+        if (!currentProject) {
+            socket.emit('project-access-revoked');
+            socket.disconnect(true);
+            return;
+        }
+
+        const savedMessage = await projectMessageModel.create({
+            project: socket.roomId,
+            message,
+            sender: { _id: socket.user._id, email: socket.user.email },
+            aiRequestId
+        });
+        const payload = savedMessage.toObject();
 
         const aiIsPresentInMessage = message.includes('@ai');
-        socket.broadcast.to(socket.roomId).emit('project-message', payload)
+        io.to(socket.roomId).emit('project-message', payload)
 
         if (aiIsPresentInMessage) {
 
@@ -86,13 +108,25 @@ io.on('connection', socket => {
             const prompt = message.replace('@ai', '');
 
             try {
+                const recentMessages = await projectMessageModel.find({
+                    project: socket.roomId,
+                    _id: { $ne: savedMessage._id }
+                }).sort({ createdAt: -1, _id: -1 }).limit(30).lean();
+                recentMessages.reverse();
+
                 const result = JSON.parse(await generateResult(prompt, {
-                    existingFileTree: socket.project.fileTree || {}
+                    existingFileTree: currentProject.fileTree || {},
+                    recentMessages
                 }));
                 const generatedFiles = collectFilePaths(result.fileTree);
+                const responseForHistory = {
+                    text: result.text,
+                    ...(generatedFiles.length ? { createdFiles: generatedFiles } : {})
+                };
+                let liveResult = responseForHistory;
 
                 if (generatedFiles.length) {
-                    const mergedFileTree = mergeFileTrees(socket.project.fileTree || {}, result.fileTree);
+                    const mergedFileTree = mergeFileTrees(currentProject.fileTree || {}, result.fileTree);
                     const savedProject = await updateFileTree({
                         projectId: socket.roomId,
                         userId: socket.user._id,
@@ -101,21 +135,29 @@ io.on('connection', socket => {
 
                     if (!savedProject) throw new Error('The project could not be found while saving generated files.');
 
-                    socket.project.fileTree = mergedFileTree;
-                    result.fileTree = mergedFileTree;
-                    result.createdFiles = generatedFiles;
                     result.text = `${result.text.trim()}\n\nSaved to project files: ${generatedFiles.join(', ')}.`;
+                    responseForHistory.text = result.text;
+                    liveResult = { ...responseForHistory, fileTree: mergedFileTree };
                 }
 
+                const aiMessage = await projectMessageModel.create({
+                    project: socket.roomId,
+                    message: JSON.stringify(responseForHistory),
+                    sender: { _id: 'ai', email: 'AI' },
+                    inReplyTo: aiRequestId
+                });
                 io.to(socket.roomId).emit('project-message', {
-                    message: JSON.stringify(result),
-                    sender: { _id: 'ai', email: 'AI' }
+                    ...aiMessage.toObject(),
+                    message: JSON.stringify(liveResult)
                 });
             } catch (error) {
-                io.to(socket.roomId).emit('project-message', {
+                const aiMessage = await projectMessageModel.create({
+                    project: socket.roomId,
                     message: JSON.stringify({ text: getAiFailureMessage(error) }),
-                    sender: { _id: 'ai', email: 'AI' }
+                    sender: { _id: 'ai', email: 'AI' },
+                    inReplyTo: aiRequestId
                 });
+                io.to(socket.roomId).emit('project-message', aiMessage.toObject());
                 console.error('OpenAI request failed:', {
                     name: error.name,
                     code: error.code,
@@ -128,6 +170,13 @@ io.on('connection', socket => {
 
 
             return
+        }
+        } catch (error) {
+            console.error('Project chat message could not be saved:', error.message);
+            socket.emit('chat-error', {
+                message: 'Your message could not be saved. Please try again.',
+                aiRequestId
+            });
         }
 
 

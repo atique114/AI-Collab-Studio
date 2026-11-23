@@ -1,5 +1,14 @@
 import projectModel from '../models/project.model.js';
+import projectMessageModel from '../models/project-message.model.js';
 import mongoose from 'mongoose';
+
+const projectOwnerId = project => String(project.owner || project.users?.[0] || '');
+
+const assertProjectOwner = (project, userId) => {
+    if (projectOwnerId(project) !== String(userId)) {
+        throw new Error('Only the project owner can manage this project');
+    }
+};
 
 export const createProject = async ({
     name, userId
@@ -15,6 +24,7 @@ export const createProject = async ({
     try {
         project = await projectModel.create({
             name,
+            owner: userId,
             users: [ userId ]
         });
     } catch (error) {
@@ -68,14 +78,12 @@ export const addUsersToProject = async ({ projectId, users, userId }) => {
     }
 
 
-    const project = await projectModel.findOne({
-        _id: projectId,
-        users: userId
-    })
+    const project = await projectModel.findById(projectId)
 
     if (!project) {
-        throw new Error("User not belong to this project")
+        throw new Error('Project not found');
     }
+    assertProjectOwner(project, userId);
 
     const updatedProject = await projectModel.findOneAndUpdate({
         _id: projectId
@@ -135,4 +143,68 @@ export const updateFileTree = async ({ projectId, fileTree, userId }) => {
     })
 
     return project;
+}
+
+export const removeUserFromProject = async ({ projectId, collaboratorId, userId }) => {
+    if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new Error('Invalid projectId');
+    }
+    if (!collaboratorId || !mongoose.Types.ObjectId.isValid(collaboratorId)) {
+        throw new Error('Invalid collaboratorId');
+    }
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid userId');
+    }
+
+    const project = await projectModel.findById(projectId);
+    if (!project) return null;
+    assertProjectOwner(project, userId);
+    if (projectOwnerId(project) === String(collaboratorId)) {
+        throw new Error('The project owner cannot be removed');
+    }
+
+    return projectModel.findOneAndUpdate({ _id: projectId, users: collaboratorId }, {
+        $pull: { users: collaboratorId }
+    }, { new: true }).populate('users', 'email');
+}
+
+export const deleteProject = async ({ projectId, userId }) => {
+    if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new Error('Invalid projectId');
+    }
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid userId');
+    }
+
+    const project = await projectModel.findById(projectId);
+    if (!project) return null;
+    assertProjectOwner(project, userId);
+
+    await project.deleteOne();
+    await projectMessageModel.deleteMany({ project: projectId });
+    return project;
+}
+
+export const getProjectChatHistory = async ({ projectId, userId, limit = 500 }) => {
+    if (!projectId || !mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new Error('Invalid projectId');
+    }
+
+    const project = await projectModel.findOne({ _id: projectId, users: userId }).select('_id');
+    if (!project) return null;
+
+    const messages = await projectMessageModel.find({ project: projectId })
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(limit)
+        .lean();
+    return messages.reverse().map(message => {
+        if (message.sender?._id !== 'ai') return message;
+        try {
+            const response = JSON.parse(message.message);
+            delete response.fileTree;
+            return { ...message, message: JSON.stringify(response) };
+        } catch {
+            return message;
+        }
+    });
 }

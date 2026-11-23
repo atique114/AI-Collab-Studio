@@ -86,6 +86,34 @@ export const addUserToProject = async (req, res) => {
 
 }
 
+export const removeUserFromProject = async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+    try {
+        const { projectId, userId: collaboratorId } = req.body;
+        const project = await projectService.removeUserFromProject({
+            projectId,
+            collaboratorId,
+            userId: req.user._id
+        });
+        if (!project) return res.status(404).json({ error: 'Project or collaborator not found' });
+
+        const io = req.app.get('io');
+        if (io) {
+            const sockets = await io.in(projectId).fetchSockets();
+            sockets.filter(socket => String(socket.user?._id) === String(collaboratorId)).forEach(socket => {
+                socket.emit('project-access-revoked');
+                socket.disconnect(true);
+            });
+        }
+
+        return res.status(200).json({ project });
+    } catch (err) {
+        return res.status(403).json({ error: err.message });
+    }
+};
+
 export const getProjectById = async (req, res) => {
 
     const { projectId } = req.params;
@@ -134,3 +162,36 @@ export const updateFileTree = async (req, res) => {
     }
 
 }
+
+export const deleteProject = async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        const project = await projectService.deleteProject({ projectId, userId: req.user._id });
+        if (!project) return res.status(404).json({ error: 'Project not found' });
+
+        const io = req.app.get('io');
+        if (io) {
+            const sockets = await io.in(projectId).fetchSockets();
+            sockets.forEach(socket => {
+                socket.emit('project-deleted');
+                socket.disconnect(true);
+            });
+        }
+        return res.status(200).json({ success: true });
+    } catch (err) {
+        return res.status(403).json({ error: err.message });
+    }
+};
+
+export const getProjectChatHistory = async (req, res) => {
+    try {
+        const messages = await projectService.getProjectChatHistory({
+            projectId: req.params.projectId,
+            userId: req.user._id
+        });
+        if (!messages) return res.status(404).json({ error: 'Project not found' });
+        return res.status(200).json({ messages });
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+};

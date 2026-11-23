@@ -361,3 +361,53 @@
     border-left: 0;
   }
 }
+
+.studio-toolbar-file{min-width:0;}
+.project-role{color:#627d38;font-size:9px;font-weight:700;}
+.studio-toolbar-file strong{max-width:min(34vw,520px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.studio-toolbar-actions{gap:9px;}
+.studio-status{display:inline-flex;align-items:center;gap:7px;max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.studio-status i{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#8db54e;box-shadow:0 0 0 3px #edf4e3;}
+.studio-download{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 12px;border:1px solid #dfe7d8!important;border-radius:8px;background:#fff;color:#44583a;font-size:10px;font-weight:700;white-space:nowrap;transition:background .16s ease,border-color .16s ease,transform .16s ease;}
+.studio-download:hover:not(:disabled){transform:translateY(-1px);border-color:#cbd9bd!important;background:#f4f8ee;}
+.studio-download:disabled{opacity:.45;cursor:not-allowed;}
+.studio-download i{font-size:14px;}
+.studio-team-caption{margin:0 0 14px;color:#9eae97;font-size:10px;line-height:1.5;}
+.studio-member{min-width:0;}
+.studio-member-info{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;}
+.studio-member-info strong{overflow:hidden;color:#eef4e8;font-size:10px;font-weight:600;text-overflow:ellipsis;white-space:nowrap;}
+.studio-member-info small{color:#9cad92;font-size:9px;}
+.studio-remove-member{display:grid;flex:0 0 29px;place-items:center;width:29px;height:29px;border:1px solid #53624c!important;border-radius:8px;background:#2b3728;color:#c4d2ba;}
+.studio-remove-member:hover:not(:disabled){border-color:#c98277!important;background:#50312d;color:#ffd9d2;}
+.studio-remove-member:disabled{opacity:.5;cursor:wait;}
+.studio-delete-project-link{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin-top:9px;padding:10px;border:1px solid #69403b!important;border-radius:8px;background:#2d2724;color:#e9aaa0;font-size:10px;font-weight:700;}
+.studio-delete-project-link:hover{background:#47302b;color:#ffd3cb;}
+.studio-preview-note{margin:0;padding:7px 11px;border-bottom:1px solid #e9eee4;background:#f8faf6;color:#84917e;font-size:9px;line-height:1.45;}
+.studio-preview-note strong{color:#586f4a;}
+.studio-preview>div a{font-weight:700;text-decoration:none;}
+.studio-preview>div a:hover{text-decoration:underline;}
+.studio-ai-thinking{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;width:max-content;max-width:92%;padding:9px 12px;border:1px solid #53684a;border-radius:11px;background:#2b3829;color:#dce9d3;font-size:11px;box-shadow:0 5px 14px #0c120b12;animation:studio-ai-fade 1.2s ease-in-out infinite;}
+.studio-ai-thinking>i{color:#d7f275;font-size:15px;animation:studio-ai-spin 1.15s linear infinite,studio-ai-icon-pulse 1.2s ease-in-out infinite;}
+.studio-ai-thinking>b{display:inline-flex;align-items:center;gap:3px;}
+.studio-ai-thinking>b i{width:3px;height:3px;border-radius:50%;background:#d7f275;animation:studio-ai-dot 1s ease-in-out infinite;}
+.studio-ai-thinking>b i:nth-child(2){animation-delay:.14s;}
+.studio-ai-thinking>b i:nth-child(3){animation-delay:.28s;}
+@keyframes studio-ai-spin{to{transform:rotate(360deg);}}
+@keyframes studio-ai-fade{0%,100%{opacity:.72;}50%{opacity:1;}}
+@keyframes studio-ai-icon-pulse{0%,100%{filter:drop-shadow(0 0 0 #d7f27500);}50%{filter:drop-shadow(0 0 5px #d7f27599);}}
+@keyframes studio-ai-dot{0%,80%,100%{opacity:.35;transform:translateY(0);}40%{opacity:1;transform:translateY(-3px);}}
+@media(prefers-reduced-motion:reduce){.studio-ai-thinking,.studio-ai-thinking>i,.studio-ai-thinking>b i{animation:none;}}
+
+@media(max-width:900px){
+  .studio-toolbar-actions{gap:7px;}
+  .studio-status{display:none;}
+  .studio-download{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;}
+  .studio-download span{display:none;}
+}
+
+@media(max-width:520px){
+  .studio-download{width:36px;min-width:36px;height:36px;min-height:36px;padding:0;}
+  .studio-download span{display:none;}
+  .studio-toolbar-file strong{max-width:31vw;font-size:11px;}
+  .studio-preview-note{font-size:8px;}
+}

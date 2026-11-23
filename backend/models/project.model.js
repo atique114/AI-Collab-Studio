@@ -16,6 +16,11 @@ const projectSchema = new mongoose.Schema({
             ref: 'user'
         }
     ],
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'user',
+        index: true
+    },
     fileTree: {
         type: Object,
         default: {}

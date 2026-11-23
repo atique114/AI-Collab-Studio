@@ -6,8 +6,9 @@ AI Collab Studio is a collaborative coding workspace for teams. Create projects,
 
 - Create an account and sign in with JWT-based authentication.
 - Create projects and invite other registered users as collaborators.
-- Exchange live project messages using Socket.IO.
-- Mention `@ai` in chat to request help from OpenAI GPT-6 Luna. File-generation responses are saved to the current project and appear as clickable file links in the chat.
+- Exchange project messages using Socket.IO, with chat history saved to MongoDB.
+- Manage project collaborators and delete projects as the project owner.
+- Mention `@ai` in chat to request help from OpenAI GPT-6 Luna. It can use readable current project files and recent saved chat as context; secret files, binary assets, lockfiles, and generated folders are omitted. File-generation responses are saved to the current project and appear as clickable file links in the chat.
 - Browse and edit project files, save the file tree to the database, and run a browser preview using WebContainer.
 - Syntax-highlight code and render formatted AI responses.
 
@@ -26,9 +27,9 @@ AI Collab Studio is a collaborative coding workspace for teams. Create projects,
 
 ## How it works
 
-The React application calls the Express REST API for authentication and project operations. MongoDB stores user accounts and project records, including each project's collaborator list and file tree. The frontend also connects to a Socket.IO room for the selected project. Chat messages are broadcast to connected collaborators; messages containing `@ai` are sent to OpenAI GPT-6 Luna through the Responses API. Valid generated files are merged into the project file tree and saved to MongoDB before the AI response is broadcast.
+The React application calls the Express REST API for authentication and project operations. MongoDB stores user accounts, project ownership, each project's collaborator list and file tree, and project chat messages. The frontend also connects to a Socket.IO room for the selected project. Messages are saved before they are broadcast to connected collaborators; messages containing `@ai` are sent to OpenAI GPT-6 Luna with readable project files and up to 30 recent chat messages as context. Secret files and obvious secret values are redacted from that context. Valid generated files are merged into the project file tree and saved to MongoDB before the AI response is saved and broadcast.
 
-The project file tree is mounted in WebContainer, which runs the project in the browser and supplies a preview URL. Code changes are sent to the backend and saved to MongoDB. Chat messages are currently live events and are not stored as chat history.
+The project file tree is mounted in WebContainer, which runs the project in the browser and supplies a preview URL. Code changes are sent to the backend and saved to MongoDB. Project pages load the latest 500 saved team and AI messages when they open.
 
 ## Prerequisites
 
@@ -109,8 +110,11 @@ Most user and project routes require a bearer token in the `Authorization` heade
 | `GET` | `/users/all` | List users available for collaboration |
 | `GET` | `/projects/all` | List projects for the signed-in user |
 | `POST` | `/projects/create` | Create a project |
-| `PUT` | `/projects/add-user` | Add collaborators to a project |
+| `PUT` | `/projects/add-user` | Add collaborators (project owner only) |
+| `PUT` | `/projects/remove-user` | Remove a collaborator (project owner only) |
+| `DELETE` | `/projects/:projectId` | Delete a project and its chat history (project owner only) |
 | `GET` | `/projects/get-project/:projectId` | Read a project and its collaborators |
+| `GET` | `/projects/chat-history/:projectId` | Read the most recent 500 project messages |
 | `PUT` | `/projects/update-file-tree` | Save a project's file tree |
 | `GET` | `/ai/get-result?prompt=...` | Request an AI response |
 
@@ -153,4 +157,4 @@ See [`output/pdf/AI-Collab-Studio-Project-Overview.pdf`](output/pdf/AI-Collab-St
 
 The backend exposes `GET /health`. HTTP 200 means MongoDB and Redis are connected; HTTP 503 means at least one is unavailable. This endpoint does not test OpenAI. The frontend requires `VITE_API_URL` to be set, and production hosting must serve the COOP/COEP headers defined in `frontend/vercel.json` for WebContainer preview. Project pages use `/project/:projectId` and support direct reloads.
 
-Run `npm run lint` and `npm run build` in `frontend`, and `npm test` in `backend`. Full browser flows require a running MongoDB, Redis, and OpenAI API key with model access and available quota. Chat messages are live only and are not saved.
+Run `npm run lint` and `npm run build` in `frontend`, and `npm test` in `backend`. Full browser flows require a running MongoDB, Redis, and OpenAI API key with model access and available quota. Chat history is retained in MongoDB and the latest 500 messages are loaded when a project opens.

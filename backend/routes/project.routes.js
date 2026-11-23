@@ -25,6 +25,18 @@ router.put('/add-user',
     projectController.addUserToProject
 )
 
+router.put('/remove-user',
+    authMiddleWare.authUser,
+    body('projectId').isString().withMessage('Project ID is required'),
+    body('userId').isString().withMessage('User ID is required'),
+    projectController.removeUserFromProject
+)
+
+router.get('/chat-history/:projectId',
+    authMiddleWare.authUser,
+    projectController.getProjectChatHistory
+)
+
 router.get('/get-project/:projectId',
     authMiddleWare.authUser,
     projectController.getProjectById
@@ -35,6 +47,11 @@ router.put('/update-file-tree',
     body('projectId').isString().withMessage('Project ID is required'),
     body('fileTree').isObject().withMessage('File tree is required'),
     projectController.updateFileTree
+)
+
+router.delete('/:projectId',
+    authMiddleWare.authUser,
+    projectController.deleteProject
 )
 
 
